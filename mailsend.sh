@@ -12,24 +12,24 @@
 ###
 
 # JSS API user and password
-JSS_API_USER="$4"
-JSS_API_PASS="$5"
+JSS_API_USER="${4}"
+JSS_API_PASS="${5}"
 # Mail server, user and password
-SMTP_SERVER="$6"
-SMTP_USER="$7"
-SMTP_PASSWORD="$8"
+SMTP_SERVER="${6}"
+SMTP_USER="${7}"
+SMTP_PASSWORD="${8}"
 # From email address
-FROM="$9"
+FROM="${9}"
 # Email subject
-SUBJECT="$10"
+SUBJECT="${10}"
 # Either UNIX path to a text file with the email message, or actual text of email message.
-MESSAGE="$11"
+MESSAGE="${11}"
 
 CURL_OPTIONS="--silent --connect-timeout 30"
 MAILSEND="/usr/local/bin/mailsend"
 
 JSS_CONNECTION="$(/usr/sbin/jamf checkJSSConnection)"
-if [ ! {JSS_CONNECTION} ]; then
+if [ ! ${JSS_CONNECTION} ]; then
     echo "No connection to JSS"
     exit 1
 fi
