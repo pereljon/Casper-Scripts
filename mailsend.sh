@@ -7,23 +7,28 @@
 # Requires: /usr/local/bin/mailsend from: https://github.com/muquit/mailsend
 #
 # Jonathan Perel, 2015-08-13
-# Version: 1.0
+# Version: 1.1
 #
 ###
 
+### SET AUTHENTICATION BELOW ###
 # JSS API user and password
-JSS_API_USER="${4}"
-JSS_API_PASS="${5}"
+JSS_API_USER="JSS_USER"
+JSS_API_PASS="JSS_PASSWORD"
 # Mail server, user and password
-SMTP_SERVER="${6}"
-SMTP_USER="${7}"
-SMTP_PASSWORD="${8}"
+SMTP_SERVER="SMTP_SERVER"
+SMTP_PORT="465"
+SMTP_USER="SMTP_USER"
+SMTP_PASSWORD="SMTP_PASSWORD"
+
+### INPUT VARIABLES FROM POLICY
 # From email address
-FROM="${9}"
+FROM="$4"
 # Email subject
-SUBJECT="${10}"
+SUBJECT="$5"
 # Either UNIX path to a text file with the email message, or actual text of email message.
-MESSAGE="${11}"
+MESSAGE="$6"
+
 
 CURL_OPTIONS="--silent --connect-timeout 30"
 MAILSEND="/usr/local/bin/mailsend"
@@ -61,10 +66,10 @@ fi
 
 if [ -f "${MESSAGE}" ]; then
     # $MESSAGE is a file, send file as message body
-    ${MAILSEND} -smtp ${SMTP_SERVER} +cc -port 465 -auth -ssl -user ${SMTP_USER} -pass "${SMTP_PASSWORD}" -t ${EMAIL_ADDRESS} -f ${FROM} -sub "${SUBJECT}" -msg-body "${MESSAGE}"
+    ${MAILSEND} -smtp ${SMTP_SERVER} +cc -port ${SMTP_PORT} -auth -ssl -user ${SMTP_USER} -pass "${SMTP_PASSWORD}" -t ${EMAIL_ADDRESS} -f ${FROM} -sub "${SUBJECT}" -msg-body "${MESSAGE}"
 elif [ -n "$MESSAGE" ]; then
     # $MESSAGE is not a file, send as text
-    ${MAILSEND} -smtp ${SMTP_SERVER} +cc -port 465 -auth -ssl -user ${SMTP_USER} -pass "${SMTP_PASSWORD}" -t ${EMAIL_ADDRESS} -f ${FROM} -sub "${SUBJECT}" <<EOF
+    ${MAILSEND} -smtp ${SMTP_SERVER} +cc -port ${SMTP_PORT} -auth -ssl -user ${SMTP_USER} -pass "${SMTP_PASSWORD}" -t ${EMAIL_ADDRESS} -f ${FROM} -sub "${SUBJECT}" <<EOF
 ${MESSAGE}
 EOF
 fi
