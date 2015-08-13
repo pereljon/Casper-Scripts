@@ -2,6 +2,8 @@
 ###
 #
 # mailsend.sh : Casper script to send email to user using authenticated SMTP with SSL.
+# https://github.com/pereljon/Casper-Scripts/blob/master/mailsend.sh
+# Info: Message input can be a text file or actual message.
 # Requires: /usr/local/bin/mailsend from: https://github.com/muquit/mailsend
 #
 # Jonathan Perel, 2015-08-13
@@ -53,7 +55,7 @@ fi
 
 EMAIL_ADDRESS="$(echo "${RESULT_XML}" | xpath "string(/computer/location/email_address)" 2> /dev/null)"
 if [ -z "${EMAIL_ADDRESS}" ]; then
-    echo "Couldn't get XML from JSS webservice"
+    echo "Couldn't get email address from XML"
     exit 6
 fi
 
