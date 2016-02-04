@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Aliases for commands
-JAMFHELPER="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
-PLISTBUDDY="/usr/libexec/PlistBuddy -c"
+jamf_helper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+PlistBuddy="/usr/libexec/PlistBuddy -c"
 
 # Constants
 dialogTitle="Install Mail Signature"
@@ -45,7 +45,7 @@ theHome=$(/usr/bin/su "$theUID" -c "echo ~/")
 
 # Get base folder for mail depending on OS version
 theOSVersion=$(/usr/bin/sw_vers -productVersion)
-if [[ $theOSVersion==10.11.* ]]; then
+if [[ ${theOSVersion} == "10.11."* ]]; then
 	baseFolder="${theHome}Library/Mail/V3"
 else
 	baseFolder="${theHome}Library/Mail/V2"
@@ -93,7 +93,7 @@ if [[ -n "$theSearch" ]]; then
 	mailRunning=$(pgrep -f "Mail.app")
 	if [[ -n "$mailRunning" ]]; then
 		# Mail.app is running, ask user to quit
-		"$JAMFHELPER" -windowType utility -icon "$dialogIconPath" -title "$dialogTitle" -description "$messageQuitMail" &
+		"$jamf_helper" -windowType utility -icon "$dialogIconPath" -title "$dialogTitle" -description "$messageQuitMail" &
 		while [ -n "$(pgrep -x "Mail")" ]; do
 			sleep 1
 		done
@@ -127,11 +127,11 @@ if [[ -n "$theSearch" ]]; then
 		echo "Signature exists in AllSignatures.plist"
 	fi
 	# Check if the signature is already installed in the AccountsMap.plist
-	installedAccountsMap=$($PLISTBUDDY "Print :${theAccountUUID}:Signatures:" "$fileAccountsMap"|grep "$theUUID")
+	installedAccountsMap=$($PlistBuddy "Print :${theAccountUUID}:Signatures:" "$fileAccountsMap"|grep "$theUUID")
 	if [[ -z "$installedAccountsMap" ]]; then 
 		# Add the new signature UUID to AccountsMap.plist
 		echo "Add signature to AccountsMap.plist"
-		$PLISTBUDDY "Add :${theAccountUUID}:Signatures: string $theUUID" "$fileAccountsMap"
+		$PlistBuddy "Add :${theAccountUUID}:Signatures: string $theUUID" "$fileAccountsMap"
 	else
 		echo "Signature exists in AccountsMap.plist"
 	fi
@@ -146,12 +146,12 @@ if [[ -n "$theSearch" ]]; then
 				# There are no default signatures for theAccountUUID
 				# Add signature theUUID for the theAccountUUID
 				echo "Add default signature to com.apple.mail.plist"
-				$PLISTBUDDY "Add :SignaturesSelected:$theAccountUUID string $theUUID" "${theHome}/Library/Containers/com.apple.mail/Data/Library/Preferences/com.apple.mail.plist"
+				$PlistBuddy "Add :SignaturesSelected:$theAccountUUID string $theUUID" "${theHome}/Library/Containers/com.apple.mail/Data/Library/Preferences/com.apple.mail.plist"
 			else
 				# There is a default signature for theAccountUUID
 				# Set signature theUUID for the theAccountUUID
 				echo "Set defaultsignature to com.apple.mail.plist"
-				$PLISTBUDDY "Set :SignaturesSelected:$theAccountUUID $theUUID" "${theHome}/Library/Containers/com.apple.mail/Data/Library/Preferences/com.apple.mail.plist"
+				$PlistBuddy "Set :SignaturesSelected:$theAccountUUID $theUUID" "${theHome}/Library/Containers/com.apple.mail/Data/Library/Preferences/com.apple.mail.plist"
 			fi
 		else
 			echo "Default signature exists in com.apple.mail.plist"
@@ -161,7 +161,7 @@ if [[ -n "$theSearch" ]]; then
 	# Kill preferences caching daemon
 	pkill -U "$theUID" cfprefsd
 	sleep 5
-	"$JAMFHELPER" -windowType utility -icon "$dialogIconPath" -title "$dialogTitle" -description "$messageDone" -button1 "OK"
+	"$jamf_helper" -windowType utility -icon "$dialogIconPath" -title "$dialogTitle" -description "$messageDone" -button1 "OK"
 	/usr/bin/su -l "$theUID" -c "open /Applications/Mail.app"
 else
 	echo "error: ldap search failed"
