@@ -6,8 +6,8 @@
 # Info: Message input can be a text file or actual message.
 # Requires: /usr/local/bin/mailsend from: https://github.com/muquit/mailsend
 #
-# Jonathan Perel, 2015-08-13
-# Version: 1.1
+# Jonathan Perel, 2016-02-03
+# Version: 1.2
 #
 ###
 
@@ -29,11 +29,21 @@ SUBJECT="$5"
 # Either UNIX path to a text file with the email message, or actual text of email message.
 MESSAGE="$6"
 
+jamf_helper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
+# Identify location of jamf binary.
+jamf_binary=$(/usr/bin/which jamf)
+if [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ ! -e "/usr/local/bin/jamf" ]]; then
+ jamf_binary="/usr/sbin/jamf"
+elif [[ "$jamf_binary" == "" ]] && [[ ! -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
+ jamf_binary="/usr/local/bin/jamf"
+elif [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
+ jamf_binary="/usr/local/bin/jamf"
+fi
 
 CURL_OPTIONS="--silent --connect-timeout 30"
 MAILSEND="/usr/local/bin/mailsend"
 
-JSS_CONNECTION="$(/usr/sbin/jamf checkJSSConnection)"
+JSS_CONNECTION="$($jamf_binary checkJSSConnection)"
 if [ ! ${JSS_CONNECTION} ]; then
     echo "No connection to JSS"
     exit 1
