@@ -1,35 +1,30 @@
 #!/bin/bash
 
-### SET THE FOLLOWING VARIABLES ###
-# 1. Set the path of the icon shown on the message dialog
-dialogIconPath="/Library/Application Support/JAMF/private/mylogo.png"
-
-# 2. Set the name of the new signature in Mail.app
-signatureName="My Custom Signature"
-
-# 3. Set the path to the new signature template file
-signatureTemplate="/Library/Application Support/JAMF/private/my.mailsignature"
-# The following tokens are replaced in the signature template file
-# USERNAME - replaced with the CN of the user
-# TITLE - replaced with the title of the user
-# PHONE - replaced with the phone number of the user
-
-# 4. Set the mail server which will be used to find the account to attach the new signature to
-serverMail="MAIL.SERVER.COM"
-
-# 5. JSS API User and password: used to lookup the username, title and phone info
-JSS_API_USER="JSSUSER"
-JSS_API_PASS="JSSPASSWORD"
-
-# 6. Set UUID for signature
-#theUUID=$(uuidgen)
-theUUID="012FF32D-4C4B-4474-8C94-D9142A8ABCFF"
-
 # Constants
 dialogTitle="Install Mail Signature"
 messageQuitMail="Please quit Mail.app to install the new email signature. Mail.app will launch once the install has completed."
 messageDone="The new email signature has been installed. Please verify that it has been properly customized for you."
+dialogIconPath="/Library/Application Support/JAMF/private/mylogo.png"
+
+# Signature template
+signatureName="My Custom Signature"
+signatureTemplate="/Library/Application Support/JAMF/private/my.mailsignature"
+# The following tokens are replaced in the signatureTemplate file
+# USERNAME - replaced with the CN of the user
+# TITLE - replaced with the title of the user
+# PHONE - replaced with the phone number of the user
+
+# Server setup
+serverMail="MAIL.SERVER.COM"
+
+### SET AUTHENTICATION BELOW ###
+# JSS API user and password
+JSS_API_USER="JSS_USER"
+JSS_API_PASS="JSS_PASSWORD"
 CURL_OPTIONS="--silent --connect-timeout 30"
+
+theUUID="012FF32D-4C4B-4474-8C94-D9142A8ABCFF"
+# theUUID=$(uuidgen)
 
 # Aliases
 jamf_helper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
@@ -64,7 +59,7 @@ theHome=$(/usr/bin/su "$theUID" -c "echo ~/")
 
 # Get base folder for mail depending on OS version
 theOSVersion=$(/usr/bin/sw_vers -productVersion)
-if [[ $theOSVersion == "10.11."* ]]; then
+if [[ $theOSVersion==10.11.* ]]; then
 	baseFolder="${theHome}Library/Mail/V3"
 else
 	baseFolder="${theHome}Library/Mail/V2"
@@ -128,7 +123,6 @@ fi
 
 theName="$(echo "${RESULT_XML}" | xpath "string(/computer/location/real_name)" 2> /dev/null)"
 theTitle="$(echo "${RESULT_XML}" | xpath "string(/computer/location/position)" 2> /dev/null)"
-theTitle="$(echo "${theTitle}" | sed 's/&/\\&/g')"
 thePhone="$(echo "${RESULT_XML}" | xpath "string(/computer/location/phone)" 2> /dev/null)"
 
 fileMailSignature="${folderSignatures}/${theUUID}.mailsignature"
