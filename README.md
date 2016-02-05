@@ -9,3 +9,6 @@ Scripts for JAMF Casper JSS Server
 
 ## mailSignatureCustomize.sh
 - Creates a customized email signature from a template file, looking up the user's name, phone, and title from the JSS
+
+## mailsend.sh
+- Script to send email to user (during policy) using authenticated SMTP with SSL.
