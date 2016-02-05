@@ -44,7 +44,7 @@ elif [[ "$jamf_binary" == "" ]] && [[ ! -e "/usr/sbin/jamf" ]] && [[ -e "/usr/lo
 elif [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
  jamf_binary="/usr/local/bin/jamf"
 fi
-
+   
 # Check for signature template file
 if [[ ! -f "$signatureTemplate" ]]; then
 	echo "error: template not found at: $signatureTemplate"
@@ -101,24 +101,28 @@ else
 	exit 1
 fi
 
+# Get system hardware uuid
 MY_UUID="$(system_profiler SPHardwareDataType | grep "Hardware UUID" | awk '{print $3}')"
 if [ -z "${MY_UUID}" ]; then
     echo "Couldn't find system UUID"
     exit 1
 fi
 
+# Check JSS connection is up
 JSS_CONNECTION="$($jamf_binary checkJSSConnection)"
 if [ ! ${JSS_CONNECTION} ]; then
     echo "No connection to JSS"
     exit 1
 fi
 
+# Get base URL to JSS from prefs
 JSS_BASEURL=$(/usr/bin/defaults read /Library/Preferences/com.jamfsoftware.jamf jss_url)
 if [ -z "${JSS_BASEURL}" ]; then
     echo "Couldn't find JSS base URL"
     exit 1
 fi
 
+# Perform web service call to JSS to get user information
 JSS_APIURL="${JSS_BASEURL}JSSResource/"
 RESULT_XML=$(/usr/bin/curl ${CURL_OPTIONS} --header "Accept: application/xml" --request GET --user "${JSS_API_USER}":"${JSS_API_PASS}" "${JSS_APIURL}computers/udid/${MY_UUID}/subset/location")
 if [ -z "${RESULT_XML}" ]; then
@@ -126,10 +130,13 @@ if [ -z "${RESULT_XML}" ]; then
     exit 1
 fi
 
+# Filter out the name, title and phone number
 theName="$(echo "${RESULT_XML}" | xpath "string(/computer/location/real_name)" 2> /dev/null)"
-theTitle="$(echo "${RESULT_XML}" | xpath "string(/computer/location/position)" 2> /dev/null)"
-theTitle="$(echo "${theTitle}" | sed 's/&/\\&/g')"
 thePhone="$(echo "${RESULT_XML}" | xpath "string(/computer/location/phone)" 2> /dev/null)"
+theTitle="$(echo "${RESULT_XML}" | xpath "string(/computer/location/position)" 2> /dev/null)"
+# Escape any amperstand (&) in the title because of sed
+theTitle="$(echo "${theTitle}" | sed 's/&/\\&/g')"
+
 
 fileMailSignature="${folderSignatures}/${theUUID}.mailsignature"
 # Check to see if Mail.app is running
@@ -148,9 +155,11 @@ fileMailSync="${baseFolder}/MailData/SyncedFilesInfo.plist"
 if [[ -f $fileMailSync ]]; then
 	rm "$fileMailSync"
 fi
+
 # Replace tokens in template file and create new signature file
 cat "$signatureTemplate" | sed "s^PHONE^$thePhone^g" | sed "s^USERNAME^$theName^g" |  sed "s^TITLE^$theTitle^g" > "$fileMailSignature"
 chown "$theUID" "$fileMailSignature"
+
 # Check if the signature is already installed in the AllSignatures.plist 
 installedAllSignatures=$(grep "$theUUID" "$fileAllSignature")
 if [[ -z "$installedAllSignatures" ]]; then 
@@ -169,6 +178,7 @@ if [[ -z "$installedAllSignatures" ]]; then
 else
 	echo "Signature exists in AllSignatures.plist"
 fi
+
 # Check if the signature is already installed in the AccountsMap.plist
 installedAccountsMap=$($PlistBuddy "Print :${theAccountUUID}:Signatures:" "$fileAccountsMap"|grep "$theUUID")
 if [[ -z "$installedAccountsMap" ]]; then 
@@ -178,6 +188,7 @@ if [[ -z "$installedAccountsMap" ]]; then
 else
 	echo "Signature exists in AccountsMap.plist"
 fi
+
 # While loop to set com.apple.mail.plist because sometimes it doesn't work because of cfprefsd caching on Mavericks
 while true; do
 # Check if the account has a default signature in com.apple.mail.plist preference
@@ -201,10 +212,15 @@ while true; do
 		break	
 	fi
 done
+
 # Kill preferences caching daemon
 pkill -U "$theUID" cfprefsd
 sleep 5
+
+# Display "done" dialog message
 "$jamf_helper" -windowType utility -icon "$dialogIconPath" -title "$dialogTitle" -description "$messageDone" -button1 "OK"
+
+# Open Mail.app
 /usr/bin/su -l "$theUID" -c "open /Applications/Mail.app"
 
 exit 0
