@@ -10,7 +10,7 @@ signatureTemplate="$5"
 # TITLE - replaced with the title of the user
 # PHONE - replaced with the phone number of the user
 
-# Param 6: Manual UUID for signature (optional: random UUID is generated otherwise)
+# Param 6: Manual UUID for signature
 theUUID="$6"
 
 # Param 7: Mail server which will be used to find the account to attach the new signature to
@@ -21,7 +21,7 @@ dialogIconPath="$8"
 
 # Params 9 & 10: JSS API User and password: used to lookup the username, title and phone info
 JSS_API_USER="$9"
-JSS_API_PASS="$10"
+JSS_API_PASS="${10}"
 
 # Constants
 dialogTitle="Install Mail Signature"
@@ -191,8 +191,8 @@ fi
 
 # Replace tokens in template file and create new signature file
 fileMailSignature="${folderSignatures}/${theUUID}.mailsignature"
-cat "$signatureTemplate" | sed "s^PHONE^$thePhone^g" | sed "s^USERNAME^$theName^g" |  sed "s^TITLE^$theTitle^g" > "$fileMailSignature"
-chown "$theUID" "$fileMailSignature"
+cat "$signatureTemplate" | sed "s^PHONE^${thePhone}^g" | sed "s^USERNAME^${theName}^g" |  sed "s^TITLE^${theTitle}^g" > "${fileMailSignature}"
+chown "${theUID}" "${fileMailSignature}"
 
 # Remove pre-existing iCloud signature
 iCloudFileMailSignature="${iCloudFolderSignatures}/ubiquitous_${theUUID}.mailsignature"
