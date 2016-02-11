@@ -1,29 +1,27 @@
 #!/bin/bash
 
-### SET THE FOLLOWING VARIABLES ###
-# 1. Set the path of the icon shown on the message dialog
-dialogIconPath="/Library/Application Support/JAMF/private/mylogo.png"
+# Param 4: Name of the new signature in Mail.app
+signatureName="$4"
 
-# 2. Set the name of the new signature in Mail.app
-signatureName="My Custom Signature"
-
-# 3. Set the path to the new signature template file
-signatureTemplate="/Library/Application Support/JAMF/private/my.mailsignature"
+# Param 5: Path to the new signature template file
+signatureTemplate="$5"
 # The following tokens are replaced in the signature template file
 # USERNAME - replaced with the CN of the user
 # TITLE - replaced with the title of the user
 # PHONE - replaced with the phone number of the user
 
-# 4. Set the mail server which will be used to find the account to attach the new signature to
-serverMail="MAIL.SERVER.COM"
+# Param 6: Manual UUID for signature (optional: random UUID is generated otherwise)
+theUUID="$6"
 
-# 5. JSS API User and password: used to lookup the username, title and phone info
-JSS_API_USER="JSSUSER"
-JSS_API_PASS="JSSPASSWORD"
+# Param 7: Mail server which will be used to find the account to attach the new signature to
+serverMail="$7"
 
-# 6. Set UUID for signature
-#theUUID=$(uuidgen)
-theUUID="012FF32D-4C4B-4474-8C94-D9142A8ABCFF"
+# Param 8: Path of the icon shown on the message dialog
+dialogIconPath="$8"
+
+# Params 9 & 10: JSS API User and password: used to lookup the username, title and phone info
+JSS_API_USER="$9"
+JSS_API_PASS="$10"
 
 # Constants
 dialogTitle="Install Mail Signature"
@@ -35,6 +33,36 @@ CURL_OPTIONS="--silent --connect-timeout 30"
 jamf_helper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 PlistBuddy="/usr/libexec/PlistBuddy -c"
 
+# Check parameters
+if [[ -z "$signatureName" ]]; then
+	echo "error: empty signature name"
+	exit 1	
+fi
+if [[ -z "$signatureTemplate" ]]; then
+	echo "error: empty signature template"
+	exit 1	
+fi
+if [[ ! -f "$signatureTemplate" ]]; then
+	echo "error: template not found at: $signatureTemplate"
+	exit 1
+fi
+if [[ -z "$serverMail" ]]; then
+	echo "error: empty mail server address"
+	exit 1	
+fi
+if [[ -z "$dialogIconPath" ]]; then
+	echo "error: empty dialog icon path"
+	exit 1	
+fi
+if [[ ! -f "$dialogIconPath" ]]; then
+	echo "error: dialog icon not found at: $dialogIconPath"
+	exit 1
+fi
+if [[ -z "$theUUID" ]]; then
+	# Generate random UUID for signature if one wasn't provided as a parameter
+	theUUID="$(uuidgen)"
+fi
+
 # Identify location of jamf binary.
 jamf_binary=$(/usr/bin/which jamf)
 if [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ ! -e "/usr/local/bin/jamf" ]]; then
@@ -44,12 +72,42 @@ elif [[ "$jamf_binary" == "" ]] && [[ ! -e "/usr/sbin/jamf" ]] && [[ -e "/usr/lo
 elif [[ "$jamf_binary" == "" ]] && [[ -e "/usr/sbin/jamf" ]] && [[ -e "/usr/local/bin/jamf" ]]; then
  jamf_binary="/usr/local/bin/jamf"
 fi
-   
-# Check for signature template file
-if [[ ! -f "$signatureTemplate" ]]; then
-	echo "error: template not found at: $signatureTemplate"
-	exit 1
+
+# Check JSS connection is up
+JSS_CONNECTION="$($jamf_binary checkJSSConnection)"
+if [ ! ${JSS_CONNECTION} ]; then
+    echo "No connection to JSS"
+    exit 1
 fi
+
+# Get base URL to JSS from prefs
+JSS_BASEURL=$(/usr/bin/defaults read /Library/Preferences/com.jamfsoftware.jamf jss_url)
+if [ -z "${JSS_BASEURL}" ]; then
+    echo "Couldn't find JSS base URL"
+    exit 1
+fi
+
+# Get system hardware uuid
+MY_UUID="$(system_profiler SPHardwareDataType | grep "Hardware UUID" | awk '{print $3}')"
+if [ -z "${MY_UUID}" ]; then
+    echo "Couldn't find system UUID"
+    exit 1
+fi
+
+# Perform web service call to JSS to get user information
+JSS_APIURL="${JSS_BASEURL}JSSResource/"
+RESULT_XML=$(/usr/bin/curl ${CURL_OPTIONS} --header "Accept: application/xml" --request GET --user "${JSS_API_USER}":"${JSS_API_PASS}" "${JSS_APIURL}computers/udid/${MY_UUID}/subset/location")
+if [ -z "${RESULT_XML}" ]; then
+    echo "Couldn't get XML from JSS webservice"
+    exit 1
+fi
+
+# Filter out the name, title and phone number
+theName="$(echo "${RESULT_XML}" | xpath "string(/computer/location/real_name)" 2> /dev/null)"
+thePhone="$(echo "${RESULT_XML}" | xpath "string(/computer/location/phone)" 2> /dev/null)"
+theTitle="$(echo "${RESULT_XML}" | xpath "string(/computer/location/position)" 2> /dev/null)"
+# Escape any amperstand (&) in the title because of sed
+theTitle="$(echo "${theTitle}" | sed 's/&/\\&/g')"
 
 # Get logged in user name
 loggedIn=$(who|grep console|grep -v _mbsetupuser)
@@ -63,12 +121,25 @@ theUID=$(echo "$loggedIn"|awk '{print $1}')
 theHome=$(/usr/bin/su "$theUID" -c "echo ~/")
 
 # Get base folder for mail depending on OS version
-theOSVersion=$(/usr/bin/sw_vers -productVersion)
-if [[ $theOSVersion == "10.11."* ]]; then
+theOSVersion="$(/usr/bin/sw_vers -productVersion)"
+theOSVerionMajor="$(echo ${theOSVersion}|cut -c 1-2)"
+theOSVerionMinor="$(echo ${theOSVersion}|cut -c 4-5)"
+if [[ $theOSVerionMajor != "10" ]]; then
+	# Error: expecting os to start with "10"
+	echo "error: unknown os version ${theOSVersion}"
+	exit 1
+elif [[ $theOSVerionMinor -ge "11" ]]; then
+	# OS 10.11 or greater
+	echo "OS is 10.11 or greater"
 	baseFolder="${theHome}Library/Mail/V3"
+	iCloudFolderSignatures="${theHome}Library/Mobile Documents/com~apple~mail/Data/V3/MailData/Signatures"
 else
+	# OS 10.10 or less
 	baseFolder="${theHome}Library/Mail/V2"
+	iCloudFolderSignatures="${theHome}Library/Mobile Documents/com~apple~mail/Data/MailData/Signatures"
 fi
+echo "OS version: ${theOSVersion}"
+echo "Base folder: ${baseFolder}"
 
 # Get and check signatures folder
 folderSignatures="${baseFolder}/MailData/Signatures"
@@ -101,44 +172,6 @@ else
 	exit 1
 fi
 
-# Get system hardware uuid
-MY_UUID="$(system_profiler SPHardwareDataType | grep "Hardware UUID" | awk '{print $3}')"
-if [ -z "${MY_UUID}" ]; then
-    echo "Couldn't find system UUID"
-    exit 1
-fi
-
-# Check JSS connection is up
-JSS_CONNECTION="$($jamf_binary checkJSSConnection)"
-if [ ! ${JSS_CONNECTION} ]; then
-    echo "No connection to JSS"
-    exit 1
-fi
-
-# Get base URL to JSS from prefs
-JSS_BASEURL=$(/usr/bin/defaults read /Library/Preferences/com.jamfsoftware.jamf jss_url)
-if [ -z "${JSS_BASEURL}" ]; then
-    echo "Couldn't find JSS base URL"
-    exit 1
-fi
-
-# Perform web service call to JSS to get user information
-JSS_APIURL="${JSS_BASEURL}JSSResource/"
-RESULT_XML=$(/usr/bin/curl ${CURL_OPTIONS} --header "Accept: application/xml" --request GET --user "${JSS_API_USER}":"${JSS_API_PASS}" "${JSS_APIURL}computers/udid/${MY_UUID}/subset/location")
-if [ -z "${RESULT_XML}" ]; then
-    echo "Couldn't get XML from JSS webservice"
-    exit 1
-fi
-
-# Filter out the name, title and phone number
-theName="$(echo "${RESULT_XML}" | xpath "string(/computer/location/real_name)" 2> /dev/null)"
-thePhone="$(echo "${RESULT_XML}" | xpath "string(/computer/location/phone)" 2> /dev/null)"
-theTitle="$(echo "${RESULT_XML}" | xpath "string(/computer/location/position)" 2> /dev/null)"
-# Escape any amperstand (&) in the title because of sed
-theTitle="$(echo "${theTitle}" | sed 's/&/\\&/g')"
-
-
-fileMailSignature="${folderSignatures}/${theUUID}.mailsignature"
 # Check to see if Mail.app is running
 mailRunning=$(pgrep -f "Mail.app")
 if [[ -n "$mailRunning" ]]; then
@@ -157,8 +190,15 @@ if [[ -f $fileMailSync ]]; then
 fi
 
 # Replace tokens in template file and create new signature file
+fileMailSignature="${folderSignatures}/${theUUID}.mailsignature"
 cat "$signatureTemplate" | sed "s^PHONE^$thePhone^g" | sed "s^USERNAME^$theName^g" |  sed "s^TITLE^$theTitle^g" > "$fileMailSignature"
 chown "$theUID" "$fileMailSignature"
+
+# Remove pre-existing iCloud signature
+iCloudFileMailSignature="${iCloudFolderSignatures}/ubiquitous_${theUUID}.mailsignature"
+if [[ -f ${iCloudFileMailSignature} ]]; then
+	rm "${iCloudFileMailSignature}"
+fi
 
 # Check if the signature is already installed in the AllSignatures.plist 
 installedAllSignatures=$(grep "$theUUID" "$fileAllSignature")
@@ -214,8 +254,7 @@ while true; do
 done
 
 # Kill preferences caching daemon
-pkill -U "$theUID" cfprefsd
-sleep 5
+pkill -U "${theUID}" cfprefsd
 
 # Display "done" dialog message
 "$jamf_helper" -windowType utility -icon "$dialogIconPath" -title "$dialogTitle" -description "$messageDone" -button1 "OK"
