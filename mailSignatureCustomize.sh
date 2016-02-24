@@ -80,6 +80,9 @@ if [ ! ${JSS_CONNECTION} ]; then
     exit 1
 fi
 
+# JSS recon (inventory) to update LDAP fields in case they have changed
+JSS_RECON="$($jamf_binary recon)"
+
 # Get base URL to JSS from prefs
 JSS_BASEURL=$(/usr/bin/defaults read /Library/Preferences/com.jamfsoftware.jamf jss_url)
 if [ -z "${JSS_BASEURL}" ]; then
