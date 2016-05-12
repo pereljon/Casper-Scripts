@@ -82,7 +82,7 @@ for nextFolder in ${theFolders}; do
 done
 
 echo "Done"
-archiveSize="$(du -sh "${theArchivePath}")"
+archiveSize="$(${serverCommand} "du -sh \"${theArchivePath}\"")"
 echo "Archive size: ${archiveSize}"
 
 rm "${serverKey}"
